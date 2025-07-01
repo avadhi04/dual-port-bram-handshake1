@@ -1,0 +1,208 @@
+module project_5(
+input clk,
+input rst,
+input start_wr,
+input start_rd,
+output[15:0] q
+ );
+
+reg[15:0] data=0; 
+
+reg[9:0] wraddress=0;
+reg[9:0] rdaddress=0; 
+
+reg[3:0] state_1;
+reg[3:0] state_2;
+
+reg write_done=0;
+reg read_done=0;
+reg write_enable=0;
+reg read_enable=0;
+
+reg[10:0] cnt_write=0;
+reg[10:0] cnt_read=0;
+reg[1:0] cnt_idle=0;
+
+parameter   STATE_AFTER_RST=4'b0000,
+            CONDITION1_WRITE=4'b0001,
+            CONDITION2_WRITE=4'b0010,
+            WRITE_ENABLE_HIGH=3'b011,
+            WRITE1=4'b0100,
+            WRITE2=4'b0101
+            WRITE_DONE_HIGH = 4'b0110,
+            WRITE_ENABLE_LOW=4'b0111,
+            WRITE_DONE_LOW=4'b1000;   
+
+parameter   CONDITION1_READ=4'b0000,
+            CONDITION2_READ=4'b0001,
+            READ_ENABLE_HIGH=4'b0010,
+            READ_1=4'b0011,
+            IDLE=4'b0100,
+            READ_DONE_HIGH=4'b0101,
+            READ_ENABLE_LOW=4'b0110,
+            READ_DONE_LOW=4'b0111;                
+
+always @(posedge clk,posedge rst)begin
+        if(rst)begin
+        wraddress<=0;
+        write_done<=0;
+        cnt_write<=0;
+        write_enable<=0;
+        state_1<=STATE_AFTER_RST;
+        end
+
+        else if(wrclk) begin
+        case(state_1)
+
+        STATE_AFTER_RST:begin
+        if(start_wr==1)
+        state_1<=WRITE_ENABLE_HIGH;
+        else
+        state_1<=STATE_AFTER_RST;
+        end  
+
+        WRITE_ENABLE_HIGH:begin
+        write_enable<=1;
+        state_1<=WRITE1;
+        end
+
+        CONDITION1_WRITE:begin
+        wraddress<=0;
+        write_enable<=0;
+        write_done<=0;
+        cnt_write<=0;
+        if(read_done==1)
+        state_1<=CONDITION2_WRITE;
+        else
+        state_1<=CONDITION1_WRITE;
+        end
+
+        CONDITION2_WRITE:begin
+        if(start_wr==1)
+        state_1<=WRITE_ENABLE_HIGH;
+        else
+        state_1<=CONDITION2_WRITE;
+        end
+
+        WRITE1:begin
+        data<=cnt_write;
+        state_1<=WRITE2;
+        end 
+
+        WRITE2:begin
+        if(cnt_write<1023)begin
+        cnt_write<=cnt_write+1;
+        wraddress<=wraddress+1;
+        data<=cnt_write+1;
+        state_1<=WRITE;
+        end
+        else
+        state_1<=WRITE_DONE_HIGH;
+        end
+
+        WRITE_DONE_HIGH:begin
+        write_done=1;
+        state_1<=WRITE_ENABLE_LOW;
+        end
+
+        WRITE_ENABLE_LOW:begin
+        write_enable<=0;
+        state_1<=WRITE_DONE_LOW;
+        end
+
+        WRITE_DONE_LOW:begin
+        write_done<=0;
+        state_1<=CONDITION1_WRITE;
+        end
+
+        endcase 
+        end
+end
+
+always @(posedge wrclk,posedge rst)begin
+
+        if(rst)begin
+        rdaddress<=0;
+        read_done<=0;
+        read_enable<=0;
+        cnt_idle<=0;
+        cnt_read<=0;
+        state_2<=CONDITION1_READ;
+        end
+
+        else  if(wrclk)begin
+        case(state_2)
+
+        CONDITION1_READ:begin
+        rdaddress<=0;
+        read_done<=0;
+        read_enable<=0;
+        cnt_idle<=0;
+        cnt_read<=0;
+        if(write_done==1)
+        state_2<=CONDITION2_READ;
+        else
+        state_2<=CONDITION1_READ;
+        end
+
+        CONDITION2_READ:begin
+        if(start_rd==1)
+        state_2<=READ_ENABLE_HIGH;
+        else
+        state_2<=CONDITION2_READ;
+        end
+
+        READ_ENABLE_HIGH:begin
+        read_enable<=1;
+        state_2<=READ_1;
+        end
+
+        READ_1:begin
+        if(cnt_read<1023)begin
+        rdaddress<=rdaddress+1;
+        cnt_read<=cnt_read+1;
+        state_2<=COMPARE_CNT_READ_1;
+        end
+        else
+        state_2<=IDLE;
+        end
+
+         IDLE:begin
+         if(cnt_idle<2)begin
+         cnt_idle<=cnt_idle+1;
+         state_2<=IDLE;
+         end
+         else
+         state_2<=READ_DONE_HIGH;
+         end
+
+         READ_DONE_HIGH:begin
+         read_done<=1;
+         state_2<=READ_ENABLE_LOW;
+         end
+  
+         READ_ENABLE_LOW:begin
+         read_enable<=0;
+         state_2<=READ_DONE_LOW;
+         end
+  
+         READ_DONE_LOW:begin
+         read_done<=0;
+         state_2<=CONDITION1_READ;
+         end
+
+       endcase
+       end
+end
+
+blk_mem_gen_0 your_instance_name (
+  .clka(clk),    // input wire clka
+  .wea(write_enable),      // input wire [0 : 0] wea
+  .addra(wraddress),  // input wire [9 : 0] addra
+  .dina(data),    // input wire [15 : 0] dina
+  .clkb(clk),    // input wire clkb
+  .enb(read_enable),      // input wire enb
+  .addrb(rdaddress),  // input wire [9 : 0] addrb
+  .doutb(q)  // output wire [15 : 0] doutb
+);
+endmodule
